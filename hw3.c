@@ -12,6 +12,7 @@
 typedef struct {
     char letter;
     int positions[5];
+    //int* positions;
     int count;
 } MapEntry;
 
@@ -39,25 +40,14 @@ bool contains(int* array, int size, int value) {
     return false;
 }
 
-int guess() {
-    const char* secret_word = "udder";
-    char* my_guess = calloc(6, sizeof(char));
-
-    printf("Enter a five letter word: ");
-    scanf("%5s", my_guess);
-
+char* getHint(const char* secret_word, char* my_guess) {
     for (int i = 0; *(my_guess + i); ++i) {
         *(my_guess + i) = tolower(*(my_guess + i));
     }
 
-    MapEntry *s = (MapEntry *) malloc(sizeof(MapEntry) * 5);
-    MapEntry *g = (MapEntry *) malloc(sizeof(MapEntry) * 5);
-    MapEntry *times_guessed = (MapEntry *) malloc(sizeof(MapEntry) * 5);
-
-    // Initialize the allocated memory to 0
-    memset(s, 0, sizeof(MapEntry) * 5);
-    memset(g, 0, sizeof(MapEntry) * 5);
-    memset(times_guessed, 0, sizeof(MapEntry) * 5);
+    MapEntry *s = (MapEntry *) calloc(5, sizeof(MapEntry));
+    MapEntry *g = (MapEntry *) calloc(5, sizeof(MapEntry));
+    MapEntry *times_guessed = (MapEntry *) calloc(5, sizeof(MapEntry));
 
     
     for (int i = 0; *(secret_word + i); ++i) {
@@ -100,7 +90,7 @@ int guess() {
     }
 
     printf("%s\n", hints);
-    return 0;
+    return hints;
 }
 
 char** read_words(char* filename, int words) {
@@ -138,8 +128,12 @@ char** read_words(char* filename, int words) {
 
 
 int wordle_server(int argc, char** argv){
-    
-    guess();
+    const char* secret_word = "udder";
+    char* my_guess = calloc(6, sizeof(char));
+
+    printf("Enter a five letter word: ");
+    scanf("%5s", my_guess);
+    getHint(secret_word, my_guess);
 
     
     if (true){ //set to True when uploading to submitty
