@@ -11,8 +11,7 @@
 
 typedef struct {
     char letter;
-    int positions[5];
-    //int* positions;
+    int* positions;
     int count;
 } MapEntry;
 
@@ -40,15 +39,19 @@ bool contains(int* array, int size, int value) {
     return false;
 }
 
-char* getHint(const char* secret_word, char* my_guess) {
+void getHint(const char* secret_word, char* my_guess) {
     for (int i = 0; *(my_guess + i); ++i) {
         *(my_guess + i) = tolower(*(my_guess + i));
     }
 
     MapEntry *s = (MapEntry *) calloc(5, sizeof(MapEntry));
     MapEntry *g = (MapEntry *) calloc(5, sizeof(MapEntry));
+    for (int i = 0; i < 5; i++) {
+        (*(s + i)).positions = (int*)calloc(5, sizeof(int));
+        (*(g + i)).positions = (int*)calloc(5, sizeof(int));
+    }
+    
     MapEntry *times_guessed = (MapEntry *) calloc(5, sizeof(MapEntry));
-
     
     for (int i = 0; *(secret_word + i); ++i) {
         int index = get_or_add_entry(s, *(secret_word + i), 5);
@@ -90,7 +93,17 @@ char* getHint(const char* secret_word, char* my_guess) {
     }
 
     printf("%s\n", hints);
-    return hints;
+
+    for (int i = 0; i < 5; i++) {
+        free((s + i)->positions);
+        free((g + i)->positions);
+    }
+    
+    free(s);
+    free(g);
+    free(times_guessed);
+    free(hints);
+    return;
 }
 
 char** read_words(char* filename, int words) {
@@ -101,21 +114,22 @@ char** read_words(char* filename, int words) {
     }
 
     char* buffer = (char*) calloc(6, sizeof(char));
-    //printf("opened %s (%d word", filename, words);
-    //if (words > 1) {
-    //    printf("s)");
-    //} else {
-    //    printf(")");
-    //}
-
-    char** word_dictionary = calloc(words + 1, sizeof(char*)); // Allocating for char*
+    printf("opened %s (%d word", filename, words);
+    if (words > 1) {
+        printf("s)\n");
+    } else {
+        printf(")\n");
+    }
+    
+    char** word_dictionary = (char**) calloc(words + 1, sizeof(char*)); // Allocating for char*
     for (int i = 0; i < words; i++) { // Looping for all words
-        if (fgets(buffer, 7, file) == NULL) { // Reading 6 characters + newline
+        if (fgets(buffer, 6, file) == NULL) { // Reading 6 characters + newline
           printf("ERROR: invalid argument(s)\n");
           printf("USAGE: hw3.out <listener-port> <seed> <word-filename> <num-words>\n");
         }
         *(buffer + strcspn(buffer, "\n")) = '\0'; // Removing newline character
-        *(word_dictionary + i) = calloc(6, sizeof(char));
+        *(buffer + strcspn(buffer, "\n")) = '\0';
+        *(word_dictionary + i) = calloc(5, sizeof(char));
         strcpy(*( word_dictionary + i), buffer);
     }
     *(word_dictionary + words) = NULL;
@@ -157,12 +171,18 @@ int wordle_server(int argc, char** argv){
     printf("PortNum: %d, seed: %d, word_file: %s, num_words: %d\n", port_num, seed, word_file, num_words_in_file);
     char** valid_words = read_words(word_file, num_words_in_file);
     
-    if (false){ //prints contents of word file
+    if (true){ //prints contents of word file
         for(char** ptr = valid_words; *ptr; ptr++){
             printf("%s\n", *ptr);
         }
     }
     
+    free(my_guess);
+    for(int i = 0; i < num_words_in_file; i++){
+        free(*(valid_words + i));
+    }
+        
+    free(valid_words);
 
-    return 0;
+    return EXIT_SUCCESS;
 }
