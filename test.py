@@ -3,8 +3,6 @@ LOGIC FOR GIVING USER FEEDBACK IN PYTHON
 TO REPLICATE IN C, NEED TO IMPLIMENT MAP + MAP FUNCTIONS
 '''
 
-
-
 secret_word = 'udder'
 my_guess = input("Enter a five letter word: ").strip().lower()
 
@@ -41,7 +39,3 @@ for i in range(0, len(my_guess)):
 
 
 print(''.join(hints))
-
-
-
-

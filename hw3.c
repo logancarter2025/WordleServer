@@ -1,58 +1,176 @@
-/* hw3-main.c */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <string.h>
+#include <pthread.h>
+#include <ctype.h>
+#include <signal.h>
+#include <stdbool.h>
 
-int total_guesses;
-int total_wins;
-int total_losses;
-char ** words;
+typedef struct {
+    char letter;
+    int positions[5];
+    int count;
+} MapEntry;
 
-/* write the wordle_server() function and place all of your code in hw3.c */
-int wordle_server( int argc, char ** argv );
+int get_or_add_entry(MapEntry *map, char letter, int size) {
+    for (int i = 0; i < size; ++i) {
+        if (*(map + i).letter == letter) {
+            return i;
+        }
+        if (*(map+ i).letter == 0) {
+            *(map+i).letter = letter;
+            *(map+ i).count = 0;
+            return i;
+        }
+    }
+    return -1;
+}
 
-int main( int argc, char ** argv )
-{
-  if false //set to True when submitting to submitty
-    setvbuf( stdout, NULL, _IONBF, 0 );
-  
-  total_guesses = total_wins = total_losses = 0;
-  words = calloc( 1, sizeof( char * ) );
-  if ( words == NULL ) { perror( "calloc() failed" ); return EXIT_FAILURE; }
+bool contains(int* array, int size, int value) {
+    for (int i = 0; i < size; ++i) {
+        if (*(array+i) == value) {
+            return true;
+        }
+    }
+    return false;
+}
 
-  int rc = wordle_server( argc, argv );
+int guess() {
+    const char *secret_word = "udder";
+    
+    char *my_guess = calloc(6, sizeof(char));
 
-  /* on Submitty, there will be more code here that validates
-   *  the global variables at the end of your code...
-   */
+   // char my_guess[6];
 
-  /* deallocate memory for the list of words played */
-  for ( char ** ptr = words ; *ptr ; ptr++ )
-  {
-    free( *ptr );
-  }
-  free( words );
+    printf("Enter a five letter word: ");
+    scanf("%5s", my_guess);
 
-  return rc;
+    for (int i = 0; my_guess[i]; ++i) {
+        *(my_guess+i) = tolower(*(my_guess+i));
+    }
+
+    MapEntry *(s+ 5) = {0};
+    MapEntry *(g+5) = {0};
+    MapEntry *(times_guessed+5) = {0};
+    
+    for (int i = 0; secret_word[i]; ++i) {
+        int index = get_or_add_entry(s, *(secret_word+i), 5);
+        //s[index].positions[s[index].count++] = i;
+        *(*(s + index).positions + (s + index)->count++) = i;
+
+    }
+    
+    for (int i = 0; *(my_guess+i); ++i) {
+        int index = get_or_add_entry(g, *(my_guess+i), 5);
+        if (*(g +index).count == 0) {
+            *(times_guessed+index).letter = *(my_guess+i);
+            *(times_guessed+index).count = 0;
+        }
+        *(*(g + index).positions + (g + index)->count++) = i;
+    }
+    
+    char *hints = calloc(6, sizeof(char));
+     for (int i = 0; i < 5; i++) {
+        *(hints + i) = '-';
+    }
+    // Add the null terminator
+    *(hints + 5) = '\0';
+
+    //char hints[6] = {'-', '-', '-', '-', '-', '\0'};
+
+    for (int i = 0; *(my_guess+i); ++i) {
+        int s_index = get_or_add_entry(s, *(my_guess+i), 5);
+        int g_index = get_or_add_entry(g, *(my_guess+i), 5);
+        if (s_index != -1 && contains(s[s_index].positions, *(s + s_index).count, i)) {
+            *(hints + i) = toupper(*(my_guess + i));
+            *(times_guessed + g_index).count++;
+        }
+    }
+
+    for (int i = 0; my_guess[i]; ++i) {
+        int s_index = get_or_add_entry(s, *(my_guess + i), 5);
+        int g_index = get_or_add_entry(g, *(my_guess + i), 5);
+        if (s_index != -1 && !contains(*(s + s_index).positions, *(s + s_index).count, i) &&
+            *(times_guessed + g_index).count < *(s + s_index).count) {
+            *(hints +i) = *(my_guess + i);
+            *(times_guessed + g_index).count++;
+        }
+    }
+
+    printf("%s\n", hints);
+    return 0;
+}
+
+char** read_words(char* filename, int words) {
+    FILE* file = fopen(filename, "r");
+    if (file == NULL) {
+        perror("ERROR: Could not open file");
+        exit(EXIT_FAILURE);
+    }
+
+    char* buffer = (char*) calloc(6, sizeof(char));
+    printf("opened %s (%d word", filename, words);
+    if (words > 1) {
+        printf("s)");
+    } else {
+        printf(")");
+    }
+
+    char** word_dictionary = calloc(words + 1, sizeof(char*)); // Allocating for char*
+    for (int i = 0; i < words; i++) { // Looping for all words
+        if (fgets(buffer, 7, file) == NULL) { // Reading 6 characters + newline
+          printf("ERROR: invalid argument(s)\n");
+          printf("USAGE: hw3.out <listener-port> <seed> <word-filename> <num-words>\n");
+        }
+        *(buffer + strcspn(buffer, "\n")) = '\0'; // Removing newline character
+        *(word_dictionary + i) = calloc(6, sizeof(char));
+        strcpy(*( word_dictionary + i), buffer);
+    }
+    *(word_dictionary + words) = NULL;
+
+    free(buffer);
+    fclose(file);
+
+    return word_dictionary;
 }
 
 
 
 
-int wordle_server(int argc, char ** argv){
+
+int wordle_server(int argc, char** argv){
+    guess();
+  
+  if (true){ //set to True when uploading to submitty
+    setvbuf( stdout, NULL, _IONBF, 0 );
+  } 
+  
   if (argc != 5){
-    perror("Incorrect number of arguments\n");
+    perror("ERROR: Invalid argument(s)\n");
+    perror("USAGE: hw4.out <listener-port> <seed> <word-filename> <num-words>\n\n");
     return EXIT_FAILURE;
   }
 
 
+  //TCP NUM
   int port_num = atoi(*(argv + 1));
+  
   int seed = atoi(*(argv + 2));
   char* word_file = *(argv + 3);
   int num_words_in_file = atoi(*(argv + 4));
 
+  printf("PortNum: %d, seed: %d, word_file: %s, num_words: %d\n", port_num, seed, word_file, num_words_in_file);
+  char** valid_words = read_words(word_file, num_words_in_file);
+  
+  if (false){ //prints contents of word file
+    for(char** ptr = valid_words; *ptr; ptr++){
+        printf("%s\n", *ptr);
+    }
+  }
+  
 
-
-
+  return 0;
 }

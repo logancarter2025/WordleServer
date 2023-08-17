@@ -11,8 +11,7 @@
 #include <strings.h>
 #include <unistd.h>
 
-int main()
-{
+int main(){
   /* create TCP client socket (endpoint) */
   int sd = socket( AF_INET, SOCK_STREAM, 0 );
   if ( sd == -1 ) { perror( "socket() failed" ); exit( EXIT_FAILURE ); }
