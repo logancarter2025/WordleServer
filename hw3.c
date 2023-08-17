@@ -17,16 +17,17 @@ typedef struct {
 
 int get_or_add_entry(MapEntry *map, char letter, int size) {
     for (int i = 0; i < size; ++i) {
-        if (*(map + i).letter == letter) {
+        if ((*(map + i)).letter == letter) {
             return i;
         }
-        if (*(map+ i).letter == 0) {
-            *(map+i).letter = letter;
-            *(map+ i).count = 0;
+        if ((*(map + i)).letter == 0) {
+            (*(map + i)).letter = letter;
+            (*(map + i)).count = 0;
             return i;
         }
     }
     return -1;
+    
 }
 
 bool contains(int* array, int size, int value) {
@@ -39,64 +40,62 @@ bool contains(int* array, int size, int value) {
 }
 
 int guess() {
-    const char *secret_word = "udder";
-    
-    char *my_guess = calloc(6, sizeof(char));
-
-   // char my_guess[6];
+    const char* secret_word = "udder";
+    char* my_guess = calloc(6, sizeof(char));
 
     printf("Enter a five letter word: ");
     scanf("%5s", my_guess);
 
-    for (int i = 0; my_guess[i]; ++i) {
-        *(my_guess+i) = tolower(*(my_guess+i));
+    for (int i = 0; *(my_guess + i); ++i) {
+        *(my_guess + i) = tolower(*(my_guess + i));
     }
 
-    MapEntry *(s+ 5) = {0};
-    MapEntry *(g+5) = {0};
-    MapEntry *(times_guessed+5) = {0};
-    
-    for (int i = 0; secret_word[i]; ++i) {
-        int index = get_or_add_entry(s, *(secret_word+i), 5);
-        //s[index].positions[s[index].count++] = i;
-        *(*(s + index).positions + (s + index)->count++) = i;
+    MapEntry *s = (MapEntry *) malloc(sizeof(MapEntry) * 5);
+    MapEntry *g = (MapEntry *) malloc(sizeof(MapEntry) * 5);
+    MapEntry *times_guessed = (MapEntry *) malloc(sizeof(MapEntry) * 5);
 
+    // Initialize the allocated memory to 0
+    memset(s, 0, sizeof(MapEntry) * 5);
+    memset(g, 0, sizeof(MapEntry) * 5);
+    memset(times_guessed, 0, sizeof(MapEntry) * 5);
+
+    
+    for (int i = 0; *(secret_word + i); ++i) {
+        int index = get_or_add_entry(s, *(secret_word + i), 5);
+        *((s + index)->positions + (s + index)->count++) = i;
     }
     
-    for (int i = 0; *(my_guess+i); ++i) {
-        int index = get_or_add_entry(g, *(my_guess+i), 5);
-        if (*(g +index).count == 0) {
-            *(times_guessed+index).letter = *(my_guess+i);
-            *(times_guessed+index).count = 0;
+    for (int i = 0; *(my_guess + i); ++i) {
+        int index = get_or_add_entry(g, *(my_guess + i), 5);
+        if ((*(g + index)).count == 0) {
+            (*(times_guessed + index)).letter = *(my_guess + i);
+            (*(times_guessed + index)).count = 0;
         }
-        *(*(g + index).positions + (g + index)->count++) = i;
+        *((g + index)->positions + (g + index)->count++) = i;
     }
-    
-    char *hints = calloc(6, sizeof(char));
-     for (int i = 0; i < 5; i++) {
+
+    char* hints = calloc(6, sizeof(char));
+    for(int i = 0; i < 5; i++){
         *(hints + i) = '-';
     }
-    // Add the null terminator
     *(hints + 5) = '\0';
 
-    //char hints[6] = {'-', '-', '-', '-', '-', '\0'};
-
-    for (int i = 0; *(my_guess+i); ++i) {
-        int s_index = get_or_add_entry(s, *(my_guess+i), 5);
-        int g_index = get_or_add_entry(g, *(my_guess+i), 5);
-        if (s_index != -1 && contains(s[s_index].positions, *(s + s_index).count, i)) {
+    for (int i = 0; *(my_guess + i); ++i) {
+        int s_index = get_or_add_entry(s, *(my_guess + i), 5);
+        int g_index = get_or_add_entry(g, *(my_guess + i), 5);
+        if (s_index != -1 && contains((*(s + s_index)).positions, (*(s + s_index)).count, i)) {
             *(hints + i) = toupper(*(my_guess + i));
-            *(times_guessed + g_index).count++;
+            (*(times_guessed + g_index)).count++;
         }
     }
 
-    for (int i = 0; my_guess[i]; ++i) {
+    for (int i = 0; *(my_guess + i); ++i) {
         int s_index = get_or_add_entry(s, *(my_guess + i), 5);
         int g_index = get_or_add_entry(g, *(my_guess + i), 5);
-        if (s_index != -1 && !contains(*(s + s_index).positions, *(s + s_index).count, i) &&
-            *(times_guessed + g_index).count < *(s + s_index).count) {
-            *(hints +i) = *(my_guess + i);
-            *(times_guessed + g_index).count++;
+        if (s_index != -1 && !contains((*(s + s_index)).positions, (*(s + s_index)).count, i) &&
+            (*(times_guessed + g_index)).count < (*(s + s_index)).count) {
+            *(hints + i) = *(my_guess + i);
+            (*(times_guessed + g_index)).count++;
         }
     }
 
@@ -112,12 +111,12 @@ char** read_words(char* filename, int words) {
     }
 
     char* buffer = (char*) calloc(6, sizeof(char));
-    printf("opened %s (%d word", filename, words);
-    if (words > 1) {
-        printf("s)");
-    } else {
-        printf(")");
-    }
+    //printf("opened %s (%d word", filename, words);
+    //if (words > 1) {
+    //    printf("s)");
+    //} else {
+    //    printf(")");
+    //}
 
     char** word_dictionary = calloc(words + 1, sizeof(char*)); // Allocating for char*
     for (int i = 0; i < words; i++) { // Looping for all words
@@ -138,39 +137,38 @@ char** read_words(char* filename, int words) {
 }
 
 
-
-
-
 int wordle_server(int argc, char** argv){
+    
     guess();
-  
-  if (true){ //set to True when uploading to submitty
-    setvbuf( stdout, NULL, _IONBF, 0 );
-  } 
-  
-  if (argc != 5){
-    perror("ERROR: Invalid argument(s)\n");
-    perror("USAGE: hw4.out <listener-port> <seed> <word-filename> <num-words>\n\n");
-    return EXIT_FAILURE;
-  }
 
-
-  //TCP NUM
-  int port_num = atoi(*(argv + 1));
+    
+    if (true){ //set to True when uploading to submitty
+        setvbuf( stdout, NULL, _IONBF, 0 );
+    } 
   
-  int seed = atoi(*(argv + 2));
-  char* word_file = *(argv + 3);
-  int num_words_in_file = atoi(*(argv + 4));
-
-  printf("PortNum: %d, seed: %d, word_file: %s, num_words: %d\n", port_num, seed, word_file, num_words_in_file);
-  char** valid_words = read_words(word_file, num_words_in_file);
-  
-  if (false){ //prints contents of word file
-    for(char** ptr = valid_words; *ptr; ptr++){
-        printf("%s\n", *ptr);
+    if (argc != 5){
+        perror("ERROR: Invalid argument(s)\n");
+        perror("USAGE: hw4.out <listener-port> <seed> <word-filename> <num-words>\n\n");
+        return EXIT_FAILURE;
     }
-  }
-  
 
-  return 0;
+
+    //TCP NUM
+    int port_num = atoi(*(argv + 1));
+    
+    int seed = atoi(*(argv + 2));
+    char* word_file = *(argv + 3);
+    int num_words_in_file = atoi(*(argv + 4));
+
+    printf("PortNum: %d, seed: %d, word_file: %s, num_words: %d\n", port_num, seed, word_file, num_words_in_file);
+    char** valid_words = read_words(word_file, num_words_in_file);
+    
+    if (false){ //prints contents of word file
+        for(char** ptr = valid_words; *ptr; ptr++){
+            printf("%s\n", *ptr);
+        }
+    }
+    
+
+    return 0;
 }
