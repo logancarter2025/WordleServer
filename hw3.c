@@ -14,6 +14,9 @@ int wordle_server( int argc, char ** argv );
 
 int main( int argc, char ** argv )
 {
+  if false //set to True when submitting to submitty
+    setvbuf( stdout, NULL, _IONBF, 0 );
+  
   total_guesses = total_wins = total_losses = 0;
   words = calloc( 1, sizeof( char * ) );
   if ( words == NULL ) { perror( "calloc() failed" ); return EXIT_FAILURE; }
@@ -32,4 +35,24 @@ int main( int argc, char ** argv )
   free( words );
 
   return rc;
+}
+
+
+
+
+int wordle_server(int argc, char ** argv){
+  if (argc != 5){
+    perror("Incorrect number of arguments\n");
+    return EXIT_FAILURE;
+  }
+
+
+  int port_num = atoi(*(argv + 1));
+  int seed = atoi(*(argv + 2));
+  char* word_file = *(argv + 3);
+  int num_words_in_file = atoi(*(argv + 4));
+
+
+
+
 }
