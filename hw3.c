@@ -140,7 +140,6 @@ char** read_words(char* filename, int words) {
     return word_dictionary;
 }
 
-
 int wordle_server(int argc, char** argv){
     const char* secret_word = "udder";
     char* my_guess = calloc(6, sizeof(char));
