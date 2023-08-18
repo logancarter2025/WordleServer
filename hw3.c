@@ -14,6 +14,7 @@ extern int total_wins;
 extern int total_losses;
 extern char ** words;
 
+int num_words_in_file;
 
 typedef struct {
     char letter;
@@ -21,8 +22,24 @@ typedef struct {
     int count;
 } MapEntry;
 
+void playGame(char** valid_words, int num_valid_words, int client_sockfd);
 
-void getHint(char* secret_word, char* my_guess);
+
+void* handle_client(void* arg) {
+    int client_sockfd = (int)(intptr_t)arg;
+
+    char welcome_msg[] = "Welcome to Wordle! Let's play a game.\n";
+    send(client_sockfd, welcome_msg, strlen(welcome_msg), 0);
+
+    playGame(words, num_words_in_file, client_sockfd); // Use num_words_in_file instead of total_words
+
+    close(client_sockfd);
+
+    return NULL;
+}
+
+
+void getHint(char* secret_word, char* my_guess, int client_sockfd);
 
 
 int get_or_add_entry(MapEntry *map, char letter, int size) {
@@ -54,54 +71,52 @@ bool isInDict(char* word, char** dict, int numWords){
 }
 
 
-void playGame(char** valid_words, int num_valid_words){
+void playGame(char** valid_words, int num_valid_words, int client_sockfd){
 
-    // Generate secret word
-    int secret_word_index = rand() % num_valid_words;
+ int secret_word_index = rand() % num_valid_words;
     char* secret_word = *(valid_words + secret_word_index);
-
     *(secret_word + 5) = '\0';
-    printf("The secret word is: %s\n", secret_word); 
+
+    char buffer[1024];
+    snprintf(buffer, sizeof(buffer), "The secret word is: %s\n", secret_word);
+    send(client_sockfd, buffer, strlen(buffer), 0);
 
     int num_guesses_left = 6;
     char* my_guess = calloc(6, sizeof(char));
     *(my_guess + 5) = '\0';
-    
-    while(num_guesses_left > 0){
-        printf("Enter a five-letter word (guesses remaining: %d): ", num_guesses_left);
-        scanf("%5s", my_guess);
-        for(int i = 0; i < 5; i++){
+
+    while (num_guesses_left > 0) {
+        snprintf(buffer, sizeof(buffer), "Enter a five-letter word (guesses remaining: %d): ", num_guesses_left);
+        send(client_sockfd, buffer, strlen(buffer), 0);
+        recv(client_sockfd, my_guess, 5, 0);
+        my_guess[5] = '\0';
+
+        for (int i = 0; i < 5; i++) {
             *(my_guess + i) = tolower(*(my_guess + i));
         }
-        
-        
-        if(isInDict(my_guess, valid_words, num_valid_words)  ){
-            //printf("Getting seg fault here?\n");
+
+        if (isInDict(my_guess, valid_words, num_valid_words)) {
             *(my_guess + 5) = '\0';
             total_guesses += 1;
-            getHint(secret_word, my_guess);
-            //getHint(sec, my_guess);
-            //printf("Getting seg fault here2?\n");
+            getHint(secret_word, my_guess, client_sockfd);
             num_guesses_left--;
-            
-            if(strcmp(secret_word, my_guess) == 0){
-                
-                printf("Congratulations\n");
+
+            if (strcmp(secret_word, my_guess) == 0) {
+                send(client_sockfd, "Congratulations\n", 17, 0);
                 total_wins += 1;
                 break;
             }
-             
+        } else {
+            send(client_sockfd, "?????\n", 6, 0);
         }
-        else{
-            printf("?????\n");
-        }   
     }
- 
-    if(num_guesses_left == 0){
-        printf("out of guesses");
+
+    if (num_guesses_left == 0) {
+        send(client_sockfd, "out of guesses", 15, 0);
         total_losses += 1;
     }
-    free(my_guess);   
+
+    free(my_guess);  
     
 
 }
@@ -117,7 +132,7 @@ bool contains(int* array, int size, int value) {
     return false;
 }
 
-void getHint(char* secret_word, char* my_guess) {   
+void getHint(char* secret_word, char* my_guess, int client_sockfd){   
     
     MapEntry *s = (MapEntry *) calloc(5, sizeof(MapEntry));
     MapEntry *g = (MapEntry *) calloc(5, sizeof(MapEntry));
@@ -144,7 +159,7 @@ void getHint(char* secret_word, char* my_guess) {
         *((g + index)->positions + (g + index)->count++) = i;
     }
 
-    char* hints = calloc(6, sizeof(char));
+     char* hints = calloc(6, sizeof(char));
     for(int i = 0; i < 5; i++){
         *(hints + i) = '-';
     }
@@ -169,7 +184,9 @@ void getHint(char* secret_word, char* my_guess) {
         }
     }
 
-    printf("%s\n", hints);
+    send(client_sockfd, hints, strlen(hints), 0);
+    send(client_sockfd, "\n", 1, 0);
+
 
     for (int i = 0; i < 5; i++) {
         free((s + i)->positions);
@@ -226,7 +243,30 @@ int wordle_server(int argc, char** argv){
     int port_num = atoi(*(argv + 1));
     int seed = atoi(*(argv + 2));
     char* word_file = *(argv + 3);
-    int num_words_in_file = atoi(*(argv + 4));
+    num_words_in_file = atoi(*(argv + 4));
+
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0) {
+    perror("ERROR: Could not create socket");
+    return EXIT_FAILURE;
+    }
+
+    struct sockaddr_in server_addr;
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(port_num);
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("ERROR: Could not bind socket");
+        return EXIT_FAILURE;
+    }
+
+    if (listen(sockfd, 5) < 0) { // 5 is the backlog queue size
+        perror("ERROR: Could not listen on socket");
+        return EXIT_FAILURE;
+    }
+
 
     printf("MAIN: opened %s (%d words)\n",word_file, num_words_in_file);
     printf("MAIN: seeded pseudo-random number generator with %d\n", seed);
@@ -253,30 +293,31 @@ int wordle_server(int argc, char** argv){
     srand(seed);
 
     //printf("PortNum: %d, seed: %d, word_file: %s, num_words: %d\n", port_num, seed, word_file, num_words_in_file);
-    char** valid_words = read_words(word_file, num_words_in_file);
+    words = read_words(word_file, num_words_in_file);
     
+  /* ========================= network setup code above ==================== */
 
+    while (1) {
+        struct sockaddr_in remote_client;
+        socklen_t client_len = sizeof(remote_client);
 
-
-
-    playGame(valid_words, num_words_in_file);
-
-    //MAKE THREAD THAT PLAYS ONE GAME OF WORDLE!
-    
-
-
-    if (true){ //prints contents of word file
-        for(char** ptr = valid_words; *ptr; ptr++){
-            printf("%s\n", *ptr);
+        int client_sockfd = accept(sockfd, (struct sockaddr *)&remote_client, &client_len);
+        if (client_sockfd == -1) {
+            perror("accept() failed");
+            continue;
         }
+
+        pthread_t thread;
+        if (pthread_create(&thread, NULL, handle_client, (void *)(intptr_t)client_sockfd) != 0) {
+            perror("ERROR: Could not create thread");
+            close(client_sockfd);
+            continue;
+        }
+        pthread_detach(thread);
     }
-    
-    //free(my_guess);
-    for(int i = 0; i < num_words_in_file; i++){
-        free(*(valid_words + i));
-    }
-        
-    free(valid_words);
-    //printf("MAIN: SIGUSR1 rcvd; Wordle server shutting down...\n");
+
+    close(sockfd);
     return EXIT_SUCCESS;
+
+  
 }
