@@ -75,10 +75,9 @@ void playGame(char** valid_words, int num_valid_words){
         }
         
         
-        
         if(isInDict(my_guess, valid_words, num_valid_words)  ){
             //printf("Getting seg fault here?\n");
-            *(my_guess + 6) = '\0';
+            *(my_guess + 5) = '\0';
             total_guesses += 1;
             getHint(secret_word, my_guess);
             //getHint(sec, my_guess);
@@ -191,7 +190,7 @@ char** read_words(char* filename, int words) {
         exit(EXIT_FAILURE);
     }
 
-    char* buffer = (char*) calloc(7, sizeof(char)); // Allocate space for 6 characters + newline
+    char* buffer = (char*) calloc(8, sizeof(char)); // Allocate space for 6 characters + newline
     printf("opened %s (%d word", filename, words);
     if (words > 1) {
         printf("s)\n");
@@ -201,22 +200,26 @@ char** read_words(char* filename, int words) {
 
     char** word_dictionary = (char**) calloc(words + 1, sizeof(char*)); // Allocating for char*
     for (int i = 0; i < words; i++) { // Looping for all words
-        if (fgets(buffer, 8, file) == NULL) { // Reading 6 characters + newline
+        if (fgets(buffer, 8, file) == NULL) {
+            if (strcmp(buffer, "\n") == 0) {
+                break;
+            }
             printf("ERROR: invalid argument(s)\n");
             printf("USAGE: hw3.out <listener-port> <seed> <word-filename> <num-words>\n");
             exit(EXIT_FAILURE);
         }
         *(buffer + strcspn(buffer, "\n")) = '\0'; // Removing newline character
-        *(word_dictionary + i) = calloc(6, sizeof(char)); // Allocating space for 5 characters + null terminator
+        *(word_dictionary + i) = calloc(7, sizeof(char)); // Allocating space for 6 characters + null terminator
         strcpy(*(word_dictionary + i), buffer);
     }
-    *(word_dictionary + words) = NULL;
+    *(word_dictionary + words) = NULL; // Correctly setting the last element to NULL
 
     free(buffer);
     fclose(file);
 
     return word_dictionary;
 }
+
 
 
 int wordle_server(int argc, char** argv){
@@ -262,7 +265,7 @@ int wordle_server(int argc, char** argv){
     
 
 
-    if (false){ //prints contents of word file
+    if (true){ //prints contents of word file
         for(char** ptr = valid_words; *ptr; ptr++){
             printf("%s\n", *ptr);
         }
