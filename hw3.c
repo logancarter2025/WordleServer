@@ -5,7 +5,6 @@
 #include <arpa/inet.h>
 #include <string.h>
 #include <pthread.h>
-#include <string.h>
 #include <ctype.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -250,9 +249,13 @@ int wordle_server(int argc, char** argv){
 
     srand(seed);
 
-    printf("PortNum: %d, seed: %d, word_file: %s, num_words: %d\n", port_num, seed, word_file, num_words_in_file);
+    //printf("PortNum: %d, seed: %d, word_file: %s, num_words: %d\n", port_num, seed, word_file, num_words_in_file);
     char** valid_words = read_words(word_file, num_words_in_file);
     
+
+
+
+
     playGame(valid_words, num_words_in_file);
 
     //MAKE THREAD THAT PLAYS ONE GAME OF WORDLE!
