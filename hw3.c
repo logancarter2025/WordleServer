@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -14,6 +15,7 @@ extern int total_wins;
 extern int total_losses;
 extern char ** words;
 
+char** valid_words;
 
 typedef struct {
     char letter;
@@ -21,8 +23,18 @@ typedef struct {
     int count;
 } MapEntry;
 
+ struct playGameArgs {
+    //char** validWords;
+    int numValidWords;
+    int socketDescriptor;
+};
 
-void getHint(char* secret_word, char* my_guess);
+pthread_mutex_t mutex_lock_guesses = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t total_wins_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t total_losses_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t add_word = PTHREAD_MUTEX_INITIALIZER;
+
+char* getHint(char* secret_word, char* my_guess);
 
 
 int get_or_add_entry(MapEntry *map, char letter, int size) {
@@ -40,72 +52,198 @@ int get_or_add_entry(MapEntry *map, char letter, int size) {
     
 }
 
-bool isInDict(char* word, char** dict, int numWords){
 
+// bool isInWords(char* word){
+//     for ( char ** ptr = words ; *ptr ; ptr++ ){
+//         if( *(word + 0) == *(ptr + 0) &&  *(word + 1) == *(ptr + 1) && *(word + 2) == *(ptr + 2) && 
+//                 *(word + 3) == *(ptr + 3)  && *(word + 4) == *(ptr + 4)){
+//             return true;
+//         }
+//     }
+//     return false;
+// }
+
+bool isInDict(char* word, char** dict, int numWords){
+    //printf("guess = %s\n", word);
     for(int i = 0; i < numWords; i++){
         if( *(word + 0) == *(*(dict + i) + 0) &&  *(word + 1) == *(*(dict + i) + 1) && *(word + 2) == *(*(dict + i) + 2) && 
-                *(word + 3) == *(*(dict + i) + 3) && *(word + 4) == *(*(dict + i) + 4)){
-            
-            printf("IN DICT\n");
+            *(word + 3) == *(*(dict + i) + 3) && *(word + 4) == *(*(dict + i) + 4)){
+
+            //printf("IN DICT\n");
             return true;
         }
     }
     return false;
 }
 
+/*
+Socket descriptor in fd table is like a pipe, pass that into wordle_server
+do receive on that socket descriptor to get the buffer
+to send in back, use send(), both send and receive are in play game\
+*/
 
-void playGame(char** valid_words, int num_valid_words){
+
+void* playGame(void* x){
+    //playGameArgs* y = (playGameArgs*) x;
+    int num_valid_words = ((struct playGameArgs*)  x)->numValidWords;
+    int socketDescriptor = ((struct playGameArgs*) x)->socketDescriptor;
+    //char** valid_words = y->validWords;
 
     // Generate secret word
     int secret_word_index = rand() % num_valid_words;
     char* secret_word = *(valid_words + secret_word_index);
 
     *(secret_word + 5) = '\0';
-    printf("The secret word is: %s\n", secret_word); 
+    // if(!isInWords(secret_word)){
+        
+
+    //     pthread_mutex_lock( &add_word );
+    //     {
+        
+    //     }
+    //     pthread_mutex_unlock( &add_word );
+
+
+    // }
+
+    //printf("The secret word is: %s\n", secret_word); 
+    
 
     int num_guesses_left = 6;
     char* my_guess = calloc(6, sizeof(char));
-    *(my_guess + 5) = '\0';
+    //*(my_guess + 5) = '\0';
     
     while(num_guesses_left > 0){
-        printf("Enter a five-letter word (guesses remaining: %d): ", num_guesses_left);
-        scanf("%5s", my_guess);
-        for(int i = 0; i < 5; i++){
-            *(my_guess + i) = tolower(*(my_guess + i));
+        //printf("Enter a five-letter word (guesses remaining: %d): ", num_guesses_left);
+        //scanf("%5s", my_guess);
+        //receive buffer from client
+        printf("THREAD %ld: waiting for guess\n", pthread_self());
+        
+        char* buffer = calloc(6, sizeof(char));
+        int n = recv(socketDescriptor, buffer, 5, 0);
+        //printf("TEST3\n");
+        if (n == -1){
+            printf("recv() failed\n");
+            exit(0);
+        }
+        if(n == 0){
+
+            printf("Client closed connection\n");
+            return EXIT_SUCCESS;
         }
         
-        
+
+        //*(my_guess + 0);
+
+        //printf("TEST1\n");
+        for(int i = 0; i < 5; i++){
+            *(my_guess + i) = tolower(*(buffer + i));
+        }
+        printf("THREAD %ld: rcvd guess: %s\n", pthread_self(), my_guess);
+            
+        //printf("TEST\n");
         if(isInDict(my_guess, valid_words, num_valid_words)  ){
             //printf("Getting seg fault here?\n");
             *(my_guess + 5) = '\0';
-            total_guesses += 1;
-            getHint(secret_word, my_guess);
+            num_guesses_left--;
+            pthread_mutex_lock( &mutex_lock_guesses );
+            {
+               total_guesses += 1;   /* CRITICAL SECTION */
+            }
+            pthread_mutex_unlock( &mutex_lock_guesses );
+
+
+            
+            char* hint = getHint(secret_word, my_guess);
+
+            char* buffer_send = calloc(9, sizeof(char));
+            *(buffer_send + 0) = 'Y';
+
+            short* guesses = (short*)(buffer_send+1);
+            *guesses = htons((short)num_guesses_left);
+            strcpy(buffer_send + 3, hint);
+
+            if (num_guesses_left != 1){
+                printf("THREAD %ld: sending reply: %s (%d guesses left)\n", pthread_self(), hint, num_guesses_left);
+            }
+            else{
+                printf("THREAD %ld: sending reply: %s (1 guess left)\n", pthread_self(), hint);
+            }
+            
+            int rc = send(socketDescriptor, buffer_send, 9, 0);
+            if(rc == -1){
+                printf("send() failed\n");
+                exit(0);
+            }
+            
             //getHint(sec, my_guess);
             //printf("Getting seg fault here2?\n");
-            num_guesses_left--;
+            
             
             if(strcmp(secret_word, my_guess) == 0){
                 
-                printf("Congratulations\n");
-                total_wins += 1;
+                //printf("Congratulations\n");
+                
+                
+                pthread_mutex_lock( &total_wins_lock );
+                {
+                    total_wins += 1;   /* CRITICAL SECTION */
+                }
+                pthread_mutex_unlock( &total_wins_lock );
+                close(socketDescriptor);
                 break;
             }
              
         }
         else{
-            printf("?????\n");
+
+            char* buffer_send = calloc(9, sizeof(char));
+            
+            short* guesses = (short*)(buffer_send+1);
+            *guesses = htons((short)num_guesses_left);
+            
+            *(buffer_send + 0) = 'N';
+            strcpy(buffer_send + 3, "?????");
+            printf("invalid guess; sending reply: ");
+            printf("invalid guess; sending reply: ????? (%d guesses left)\n", num_guesses_left);
+            int rc = send(socketDescriptor, buffer_send, 9, 0);
+            if(rc == -1){
+                printf("send() failed\n");
+                exit(0);
+            }
+            
         }   
     }
  
     if(num_guesses_left == 0){
         printf("out of guesses");
+        pthread_mutex_lock(&total_losses_lock);
+        {
         total_losses += 1;
+        }
+        pthread_mutex_unlock(&total_losses_lock);
     }
+    close(socketDescriptor);
     free(my_guess);   
+    pthread_detach(pthread_self());
+
+  
+    printf(" game over; word was ");
+    for(int i = 0; i < 5; i++){
+        printf("%c", toupper(*(secret_word + i)));
+    }
+    printf("!\n");
+    printf("MAIN: SIGUSR1 rcvd; Wordle server shutting down...\n");
+    printf("MAIN:MAIN: valid guesses: %d\n", total_guesses);
+    printf("MAIN:MAIN: win/loss: %d/%d\n", total_wins, total_losses);
+    printf("MAIN:MAIN: word #1: ");
+    for(int i = 0; i < 5; i++){
+        printf("%c", toupper(*(secret_word + i)));
+    }
+    printf("\n");
     
-
+    return NULL;
 }
-
 
 bool contains(int* array, int size, int value) {
     for (int i = 0; i < size; ++i) {
@@ -117,7 +255,7 @@ bool contains(int* array, int size, int value) {
     return false;
 }
 
-void getHint(char* secret_word, char* my_guess) {   
+char* getHint(char* secret_word, char* my_guess) {   
     
     MapEntry *s = (MapEntry *) calloc(5, sizeof(MapEntry));
     MapEntry *g = (MapEntry *) calloc(5, sizeof(MapEntry));
@@ -169,7 +307,7 @@ void getHint(char* secret_word, char* my_guess) {
         }
     }
 
-    printf("%s\n", hints);
+    //printf("%s\n", hints);
 
     for (int i = 0; i < 5; i++) {
         free((s + i)->positions);
@@ -179,8 +317,8 @@ void getHint(char* secret_word, char* my_guess) {
     free(s);
     free(g);
     free(times_guessed);
-    free(hints);
-    return;
+    //free(hints);
+    return hints;
 }
 
 char** read_words(char* filename, int words) {
@@ -191,12 +329,15 @@ char** read_words(char* filename, int words) {
     }
 
     char* buffer = (char*) calloc(8, sizeof(char)); // Allocate space for 6 characters + newline
-    printf("opened %s (%d word", filename, words);
+    //printf("opened %s (%d word", filename, words);
+    /*
+    
     if (words > 1) {
         printf("s)\n");
     } else {
         printf(")\n");
     }
+    */
 
     char** word_dictionary = (char**) calloc(words + 1, sizeof(char*)); // Allocating for char*
     for (int i = 0; i < words; i++) { // Looping for all words
@@ -217,6 +358,7 @@ char** read_words(char* filename, int words) {
     free(buffer);
     fclose(file);
 
+
     return word_dictionary;
 }
 
@@ -230,10 +372,8 @@ int wordle_server(int argc, char** argv){
 
     printf("MAIN: opened %s (%d words)\n",word_file, num_words_in_file);
     printf("MAIN: seeded pseudo-random number generator with %d\n", seed);
-    printf("MAIN: Wordle server listening on port {%d}",port_num);
+    printf("MAIN: Wordle server listening on port {%d}\n",port_num);
     printf("MAIN: rcvd incoming connection request\n");
-
-
 
     
     if (true){ //set to True when uploading to submitty
@@ -245,31 +385,88 @@ int wordle_server(int argc, char** argv){
         perror("USAGE: hw4.out <listener-port> <seed> <word-filename> <num-words>\n\n");
         return EXIT_FAILURE;
     }
-
-
     //TCP NUM
-    
-
     srand(seed);
 
     //printf("PortNum: %d, seed: %d, word_file: %s, num_words: %d\n", port_num, seed, word_file, num_words_in_file);
-    char** valid_words = read_words(word_file, num_words_in_file);
+    valid_words = read_words(word_file, num_words_in_file);
     
+    //playGame(valid_words, num_words_in_file);
+
+    int listener = socket(AF_INET, SOCK_STREAM, 0);
+    if (listener < 0) {
+        perror("ERROR: Could not create socket");
+        return EXIT_FAILURE;
+    }
+
+    struct sockaddr_in server_addr;
+    //memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(port_num); // port_num is the port number you want to listen on
+    server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+    if (bind(listener, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("ERROR: Could not bind socket");
+        return EXIT_FAILURE;
+    }
 
 
-
-
-    playGame(valid_words, num_words_in_file);
-
-    //MAKE THREAD THAT PLAYS ONE GAME OF WORDLE!
-    
-
-
-    if (true){ //prints contents of word file
+    if (listen(listener, 5) < 0) { // 5 is the maximum len to which the queue of pending connections may grow.
+        perror("ERROR: Could not listen on socket");
+        return EXIT_FAILURE;
+    }
+    if (false){ //prints contents of word file
         for(char** ptr = valid_words; *ptr; ptr++){
             printf("%s\n", *ptr);
         }
     }
+
+
+    while (true) {
+        struct sockaddr_in remote_client;
+        int addrlen = sizeof(remote_client);
+
+        //printf("SERVER: Blocked on accept()\n");
+        
+        
+        /*
+        int *newsd = malloc(sizeof(int));
+        if (!newsd) {
+            perror("malloc() failed");
+            continue;
+        }
+        *newsd = accept(listener, (struct sockaddr *)&remote_client, (socklen_t *)&addrlen);
+        
+        if (*newsd == -1) {
+            perror("accept() failed");
+            free(newsd);
+            continue;
+        }
+        */
+        int newsd = accept(listener, (struct sockaddr *)&remote_client, (socklen_t *)&addrlen);
+        //printf("SERVER: Accepted new client connection on newsd %d\n", newsd);
+
+        pthread_t tid;
+        struct playGameArgs *x = calloc(1, sizeof(int) + sizeof(int));
+
+        x->numValidWords = num_words_in_file;
+        x->socketDescriptor = newsd;
+        //int* n = calloc(1, sizeof(int));
+        //*n =  num_words_in_file;
+
+        //x->validWords = valid_words;
+
+        if (pthread_create(&tid, NULL, playGame, (void*)x) != 0) {
+            perror("pthread_create() failed");
+            close(newsd);
+            //free(newsd);
+
+        }
+
+    }
+    close(listener);
+
+    
     
     //free(my_guess);
     for(int i = 0; i < num_words_in_file; i++){
@@ -277,6 +474,9 @@ int wordle_server(int argc, char** argv){
     }
         
     free(valid_words);
-    //printf("MAIN: SIGUSR1 rcvd; Wordle server shutting down...\n");
+   
+
+   
     return EXIT_SUCCESS;
 }
+
