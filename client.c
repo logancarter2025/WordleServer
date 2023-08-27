@@ -35,7 +35,7 @@ int main(){
   struct sockaddr_in tcp_server;
   tcp_server.sin_family = AF_INET;  /* IPv4 */
   memcpy((void *)&tcp_server.sin_addr, (void *)hp->h_addr, hp->h_length );
-  unsigned short server_port = 8969;
+  unsigned short server_port = 8970;
   tcp_server.sin_port = htons( server_port );
 
   printf( "CLIENT: TCP server address is %s\n", inet_ntoa( tcp_server.sin_addr ) );
@@ -50,7 +50,7 @@ int main(){
 
   /* The implementation of the application protocol is below... */
 
-while ( 1 )    /* TO DO: fix the memory leaks! */
+while ( 1 )
 {
   char * buffer = calloc( 9, sizeof( char ) );
   if ( fgets( buffer, 9, stdin ) == NULL ) break;
